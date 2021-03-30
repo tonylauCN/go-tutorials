@@ -2,6 +2,7 @@ Table of Contents
 =================
 
    * [Channel](#channel)
+   
          * [一、前言：并发问题的挑战](#一前言并发问题的挑战)
          * [二、Channel介绍](#二channel介绍)
             * [2.1 CSP](#21-csp)
@@ -21,7 +22,9 @@ Table of Contents
             * [3.5 chan.go源码说明 - receive部分](#35-chango源码说明---receive部分)
             * [3.6 补充G的切换和唤醒：goPark &amp; goReady](#36-补充g的切换和唤醒gopark--goready)
             * [3.7 资源泄漏](#37-资源泄漏)
+         * [四、Channel使用问题](#四Channel使用问题)
             * [4.1 原则](#41-原则)
+
 
 
 # Channel
@@ -613,7 +616,7 @@ Channel 可能会引发 goroutine 泄漏。
 
 泄漏的原因是 goroutine 操作 channel 后，处于发送或接收阻塞状态，而 channel 处于满或空的状态，一直得不到改变。同时，垃圾回收器也不会回收此类资源，进而导致 gouroutine 会一直处于等待队列中，不见天日。
 
-###四、Channel使用问题
+### 四、Channel使用问题
 关于 channel 的使用，有几点不方便的地方：
 * 在不改变 channel 自身状态的情况下，无法获知一个 channel 是否关闭。
 * 关闭一个 closed channel 会导致 panic。所以，如果关闭 channel 的一方在不知道 channel 是否处于关闭状态时就去贸然关闭 channel 是很危险的事情。
