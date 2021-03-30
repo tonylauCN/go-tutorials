@@ -24,7 +24,7 @@ Go是从2007年末由Robert Griesemer, Rob Pike, Ken Thompson主持开发，后�
 <img src="https://user-images.githubusercontent.com/10111580/112921205-f20dfb80-913c-11eb-8d48-5150a7ed6095.png" width="880" height="260">
 
 
-##### 并行和并发
+#### 并行和并发
 
 并行
 ***并发：***
@@ -42,10 +42,10 @@ Go是从2007年末由Robert Griesemer, Rob Pike, Ken Thompson主持开发，后�
  
 * 饥饿。并发的线程不能获取它所需要的资源以进行下一步的工作。通常是有一个非常贪婪的线程，长时间占据资源不释放，导致其他线程无法获得资源。
 
-##### CSP
+#### CSP
 CSP 全称是 “Communicating Sequential Processes”, 是 Go 在并发编程上成功的关键因素。
 
-##### Channel
+#### Channel
 &nbsp;&nbsp;&nbsp;&nbsp;Goroutine 和 channel 是 Go 语言并发编程的 两大基石。Goroutine 用于执行并发任务，channel 用于 goroutine 之间的同步、通信。
 &nbsp;&nbsp;&nbsp;&nbsp;Channel 在 gouroutine 间架起了一条管道，在管道里传输数据，实现 gouroutine 间的通信；由于它是线程安全的，所以用起来非常方便；channel 还提供“先进先出”的特性；它还能影响 goroutine 的阻塞和唤醒。
 
