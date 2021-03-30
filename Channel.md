@@ -26,7 +26,7 @@ Table of Contents
 
 
 # Channel
-Channel 是 Go 语言中被用来实现并行计算方程之间通信的类型。其功能是允许线程内/间通过发送和接收来传输指定类型的数据。
+Channel是Go中的一个核心类型，可以把它看成一个管道。其功能是允许线程内/间通过发送和接收来传输指定类型的数据。
 
 > 线程内：runtime.GOMAXPROCS(1) 
 > 线程间：runtime.GOMAXPROCS(2+) 发送/接收端在同一个M，其他M任务偷取
@@ -46,6 +46,11 @@ Channel 是 Go 语言中被用来实现并行计算方程之间通信的类型�
 * 活锁。想象一下，你走在一条小路上，一个人迎面走来。你往左边走，想避开他；他做了相反的事情，他往右边走，结果两个都过不了。之后，两个人又都想从原来自己相反的方向走，还是同样的结果。这就是活锁，看起来都像在工作，但工作进度就是无法前进。
  
 * 饥饿。并发的线程不能获取它所需要的资源以进行下一步的工作。通常是有一个非常贪婪的线程，长时间占据资源不释放，导致其他线程无法获得资源。
+
+<strong>并发编程模型按照实现方式可以分为两类：</strong>
+
+* 共享状态并发（Shared state concurrency）
+* 消息传递并发（Message passing concurrency）
 
 大多数的编程语言的并发编程模型是基于线程和内存同步访问控制，Go 的并发编程的模型则用 goroutine 和 channel 来替代。Goroutine 和线程类似，channel 和 mutex (用于内存同步访问控制)类似。
 Channel解决 数据竞争和内存访问同步。
@@ -188,7 +193,17 @@ type waitq struct {
 
 <img src="https://user-images.githubusercontent.com/10111580/112921593-9f810f00-913d-11eb-83c4-239e1e2f3bdb.png" width="580">
 
+>图中错误说明：
+>1、不存在recvq和sendq同时存在的情况<br>
+2、一般recvx与sendx之间的差值不会大于1
+
+
 <img src="https://user-images.githubusercontent.com/10111580/112922412-09e67f00-913f-11eb-9693-d678afea7c19.png" width="580">
+
+>elem 指向G的stack的指针<br>
+>prev/next指向上一个sudog(Goroutine)/下一个的指针，形成链表<br>
+>问题？为什么是双向链表
+
 
 #### 3.2 带缓冲Channel的缓冲区处理
 
