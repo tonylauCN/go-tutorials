@@ -117,7 +117,33 @@ lock or channel？
 
 ### Channel原理
 
-***LV1***
+***LV1层***
+带缓冲Channel的缓冲区处理
+| make(chan T, 3)| ch <- T | ch <- T *2 | <- ch |
+| --- | --- | --- | --- |
+| ![image](https://user-images.githubusercontent.com/10111580/112947197-17b0fa00-9169-11eb-9f6b-d70239077a7c.png)| ![image](https://user-images.githubusercontent.com/10111580/112947749-c6edd100-9169-11eb-9ff7-dde171d998fd.png) | ![image](https://user-images.githubusercontent.com/10111580/112947808-d8cf7400-9169-11eb-8006-53676c3b3dc2.png)|![image](https://user-images.githubusercontent.com/10111580/112947854-e553cc80-9169-11eb-858b-de92b6c2a84b.png)|
+
+内存地址补充
+
+发送和接收带缓冲数据
+
+| G1 | G2 |
+| --- | --- |
+| ![image](https://user-images.githubusercontent.com/10111580/112950069-77f56b00-916c-11eb-8817-634afc047985.png)| ![image](https://user-images.githubusercontent.com/10111580/112950094-7d52b580-916c-11eb-8179-33862cfb8ddb.png) |
+
+##### Sender ： G1
+| tashCH <- task0 | 1. acquire | 2. enqueue task0(copy) | 3. release |
+| --- | --- | --- | --- |
+| ![image](https://user-images.githubusercontent.com/10111580/112950391-d15d9a00-916c-11eb-8a4e-f7c459664bb9.png) | ![image](https://user-images.githubusercontent.com/10111580/112950435-dae70200-916c-11eb-89a4-326f1744eb4c.png) | ![image](https://user-images.githubusercontent.com/10111580/112950466-e6d2c400-916c-11eb-8517-1200da4f25fc.png) | ![image](https://user-images.githubusercontent.com/10111580/112950514-f520e000-916c-11eb-9afe-71260dd23ce0.png)|
+
+##### Recevier ： G2
+| t := <-ch task0（copy) | 1. acquire | 2. dequeue | 3. release  |
+| --- | --- | --- | --- |
+| ![image](https://user-images.githubusercontent.com/10111580/112950931-69f41a00-916d-11eb-88a2-6e0ea87c5ea9.png) | ![image](https://user-images.githubusercontent.com/10111580/112950961-711b2800-916d-11eb-8a69-176527d49fc9.png) | ![image](https://user-images.githubusercontent.com/10111580/112951092-9445d780-916d-11eb-9726-17380283c977.png) | ![image](https://user-images.githubusercontent.com/10111580/112951140-9f990300-916d-11eb-9a90-1f5cb0e31e54.png) |
+
+
+
+***LV2层***
 ```golang
 type hchan struct {
 	// chan 里元素数量
@@ -155,32 +181,7 @@ type waitq struct {
 
 <img src="https://user-images.githubusercontent.com/10111580/112922412-09e67f00-913f-11eb-9693-d678afea7c19.png" width="580">
 
-***LV2***
-带缓冲Channel的缓冲区处理
-| make(chan T, 3)| ch <- T | ch <- T *2 | <- ch |
-| --- | --- | --- | --- |
-| ![image](https://user-images.githubusercontent.com/10111580/112947197-17b0fa00-9169-11eb-9f6b-d70239077a7c.png)| ![image](https://user-images.githubusercontent.com/10111580/112947749-c6edd100-9169-11eb-9ff7-dde171d998fd.png) | ![image](https://user-images.githubusercontent.com/10111580/112947808-d8cf7400-9169-11eb-8006-53676c3b3dc2.png)|![image](https://user-images.githubusercontent.com/10111580/112947854-e553cc80-9169-11eb-858b-de92b6c2a84b.png)|
-
-内存地址补充
-
-发送和接收带缓冲数据
-
-| G1 | G2 |
-| --- | --- |
-| ![image](https://user-images.githubusercontent.com/10111580/112950069-77f56b00-916c-11eb-8817-634afc047985.png)| ![image](https://user-images.githubusercontent.com/10111580/112950094-7d52b580-916c-11eb-8179-33862cfb8ddb.png) |
-
-##### Sender ： G1
-| tashCH <- task0 | 1. acquire | 2. enqueue task0(copy) | 3. release |
-| --- | --- | --- | --- |
-| ![image](https://user-images.githubusercontent.com/10111580/112950391-d15d9a00-916c-11eb-8a4e-f7c459664bb9.png) | ![image](https://user-images.githubusercontent.com/10111580/112950435-dae70200-916c-11eb-89a4-326f1744eb4c.png) | ![image](https://user-images.githubusercontent.com/10111580/112950466-e6d2c400-916c-11eb-8517-1200da4f25fc.png) | ![image](https://user-images.githubusercontent.com/10111580/112950514-f520e000-916c-11eb-9afe-71260dd23ce0.png)|
-
-##### Recevier ： G2
-| t := <-ch task0（copy) | 1. acquire | 2. dequeue | 3. release  |
-| --- | --- | --- | --- |
-| ![image](https://user-images.githubusercontent.com/10111580/112950931-69f41a00-916d-11eb-88a2-6e0ea87c5ea9.png) | ![image](https://user-images.githubusercontent.com/10111580/112950961-711b2800-916d-11eb-8a69-176527d49fc9.png) | ![image](https://user-images.githubusercontent.com/10111580/112951092-9445d780-916d-11eb-9726-17380283c977.png) | ![image](https://user-images.githubusercontent.com/10111580/112951140-9f990300-916d-11eb-9a90-1f5cb0e31e54.png) |
-
-
-***LV3***
+***LV3层***
 ```golang
 type hchan struct {
 	qcount   uint           // total data in the queue
@@ -208,6 +209,10 @@ type waitq struct {
 	last  *sudog
 }
 ```
+
+补充：goPark & goReady
+goPart -> mcall(pc/sp->m.sched) -> parm_m (schedule -> execute -> gogo(m.sched -> pc/sp))
+goReady -> 
 
 
 ##### 资源泄漏
