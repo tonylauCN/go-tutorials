@@ -8,6 +8,7 @@ Go是从2007年末由Robert Griesemer, Rob Pike, Ken Thompson主持开发，后�
 
 ![image](https://user-images.githubusercontent.com/10111580/112920625-ecfc7c80-913b-11eb-837d-a5c797fa82a6.png)
 
+
 ### Goroutine 原理
 <img src="https://user-images.githubusercontent.com/10111580/112920889-6ac08800-913c-11eb-932c-f56a5eb8ade1.png" width="880" height="260">
 
@@ -22,6 +23,10 @@ Go是从2007年末由Robert Griesemer, Rob Pike, Ken Thompson主持开发，后�
 
 ### Channel 原理
 <img src="https://user-images.githubusercontent.com/10111580/112921205-f20dfb80-913c-11eb-8d48-5150a7ed6095.png" width="880" height="260">
-
+---
+title: PAGE TITLE HERE
+layout: template
+filename: Channel.md
+--- 
 
 ### 实践案例分享
