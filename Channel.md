@@ -45,11 +45,17 @@ Go 通过 channel 实现 CSP 通信模型，主要用于 goroutine 之间的消�
 (用同步代码解决异步问题)
 
 #### Channel声明
-Channel 分为两种：带缓冲、不带缓冲。对不带缓冲的 channel 进行的操作实际上可以看作“同步模式”，带缓冲的则称为“异步模式”。
+Channel 分为两种：带缓冲、不带缓冲。
+
+对不带缓冲的 channel 进行的操作实际上可以看作“同步模式”，带缓冲的则称为“异步模式”。
+
 同步模式下，发送方和接收方要同步就绪，只有在两者都 ready 的情况下，数据才能在两者间传输（后面会看到，实际上就是内存拷贝）。否则，任意一方先行进行发送或接收操作，都会被挂起，等待另一方的出现才能被唤醒。
 异步模式下，在缓冲槽可用的情况下（有剩余容量），发送和接收操作都可以顺利进行。否则，操作的一方（如写入）同样会被挂起，直到出现相反操作（如接收）才会被唤醒。
+
 单向通道的声明，用 <- 来表示，它指明通道的方向。
+
 因为channel 是一个引用类型，所以在它被初始化之前，它的值是 nil，channel 使用 make 函数进行初始化。
+
 可以向它传递一个 int 值，代表 channel 缓冲区的大小（容量），构造出来的是一个缓冲型的 channel；不传或传 0 的，构造的就是一个非缓冲型的 channel。
 
 ```golang
@@ -88,8 +94,10 @@ func main() {
 	wg.Add(2)
 
 	ch := make(chan int)
+	// 创建Goroutine A&B 并接收ch数据
 	go goroutineA(ch, wg)
 	go goroutineB(ch, wg)
+	// 发送 3&4 到ch
 	ch <- 3
 	ch <- 4
 	wg.Wait()
@@ -182,31 +190,165 @@ type waitq struct {
 <img src="https://user-images.githubusercontent.com/10111580/112922412-09e67f00-913f-11eb-9693-d678afea7c19.png" width="580">
 
 ***LV3层***
-```golang
-type hchan struct {
-	qcount   uint           // total data in the queue
-	dataqsiz uint           // size of the circular queue
-	buf      unsafe.Pointer // points to an array of dataqsiz elements
-	elemsize uint16
-	closed   uint32
-	elemtype *_type // element type
-	sendx    uint   // send index
-	recvx    uint   // receive index
-	recvq    waitq  // list of recv waiters
-	sendq    waitq  // list of send waiters
 
-	// lock protects all fields in hchan, as well as several
-	// fields in sudogs blocked on this channel.
+send本质
+
+```golang
+// 位于 src/runtime/chan.go
+
+func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
+	// 如果 channel 是 nil
+	if c == nil {
+		// 不能阻塞，直接返回 false，表示未发送成功
+		if !block {
+			return false
+		}
+		// 当前 goroutine 被挂起
+		gopark(nil, nil, "chan send (nil chan)", traceEvGoStop, 2)
+		throw("unreachable")
+	}
+
+	// 省略 debug 相关……
+
+	// 对于不阻塞的 send，快速检测失败场景
 	//
-	// Do not change another G's status while holding this lock
-	// (in particular, do not ready a G), as this can deadlock
-	// with stack shrinking.
-	lock mutex
+	// 如果 channel 未关闭且 channel 没有多余的缓冲空间。这可能是：
+	// 1. channel 是非缓冲型的，且等待接收队列里没有 goroutine
+	// 2. channel 是缓冲型的，但循环数组已经装满了元素
+	if !block && c.closed == 0 && ((c.dataqsiz == 0 && c.recvq.first == nil) ||
+		(c.dataqsiz > 0 && c.qcount == c.dataqsiz)) {
+		return false
+	}
+
+	var t0 int64
+	if blockprofilerate > 0 {
+		t0 = cputicks()
+	}
+
+	// 锁住 channel，并发安全
+	lock(&c.lock)
+
+	// 如果 channel 关闭了
+	if c.closed != 0 {
+		// 解锁
+		unlock(&c.lock)
+		// 直接 panic
+		panic(plainError("send on closed channel"))
+	}
+
+	// 如果接收队列里有 goroutine，直接将要发送的数据拷贝到接收 goroutine
+	if sg := c.recvq.dequeue(); sg != nil {
+		send(c, sg, ep, func() { unlock(&c.lock) }, 3)
+		return true
+	}
+
+	// 对于缓冲型的 channel，如果还有缓冲空间
+	if c.qcount < c.dataqsiz {
+		// qp 指向 buf 的 sendx 位置
+		qp := chanbuf(c, c.sendx)
+
+		// ……
+
+		// 将数据从 ep 处拷贝到 qp
+		typedmemmove(c.elemtype, qp, ep)
+		// 发送游标值加 1
+		c.sendx++
+		// 如果发送游标值等于容量值，游标值归 0
+		if c.sendx == c.dataqsiz {
+			c.sendx = 0
+		}
+		// 缓冲区的元素数量加一
+		c.qcount++
+
+		// 解锁
+		unlock(&c.lock)
+		return true
+	}
+
+	// 如果不需要阻塞，则直接返回错误
+	if !block {
+		unlock(&c.lock)
+		return false
+	}
+
+	// channel 满了，发送方会被阻塞。接下来会构造一个 sudog
+
+	// 获取当前 goroutine 的指针
+	gp := getg()
+	mysg := acquireSudog()
+	mysg.releasetime = 0
+	if t0 != 0 {
+		mysg.releasetime = -1
+	}
+
+	mysg.elem = ep
+	mysg.waitlink = nil
+	mysg.g = gp
+	mysg.selectdone = nil
+	mysg.c = c
+	gp.waiting = mysg
+	gp.param = nil
+
+	// 当前 goroutine 进入发送等待队列
+	c.sendq.enqueue(mysg)
+
+	// 当前 goroutine 被挂起
+	goparkunlock(&c.lock, "chan send", traceEvGoBlockSend, 3)
+
+	// 从这里开始被唤醒了（channel 有机会可以发送了）
+	if mysg != gp.waiting {
+		throw("G waiting list is corrupted")
+	}
+	gp.waiting = nil
+	if gp.param == nil {
+		if c.closed == 0 {
+			throw("chansend: spurious wakeup")
+		}
+		// 被唤醒后，channel 关闭了。坑爹啊，panic
+		panic(plainError("send on closed channel"))
+	}
+	gp.param = nil
+	if mysg.releasetime > 0 {
+		blockevent(mysg.releasetime-t0, 2)
+	}
+	// 去掉 mysg 上绑定的 channel
+	mysg.c = nil
+	releaseSudog(mysg)
+	return true
 }
 
-type waitq struct {
-	first *sudog
-	last  *sudog
+func send(c *hchan, sg *sudog, ep unsafe.Pointer, unlockf func(), skip int) {
+	// 省略一些用不到的
+	// ……
+
+	// sg.elem 指向接收到的值存放的位置，如 val <- ch，指的就是 &val
+	if sg.elem != nil {
+		// 直接拷贝内存（从发送者到接收者）
+		sendDirect(c.elemtype, sg, ep)
+		sg.elem = nil
+	}
+	// sudog 上绑定的 goroutine
+	gp := sg.g
+	// 解锁
+	unlockf()
+	gp.param = unsafe.Pointer(sg)
+	if sg.releasetime != 0 {
+		sg.releasetime = cputicks()
+	}
+	// 唤醒接收的 goroutine. skip 和打印栈相关，暂时不理会
+	goready(gp, skip+1)
+}
+
+func sendDirect(t *_type, sg *sudog, src unsafe.Pointer) {
+	// src 在当前 goroutine 的栈上，dst 是另一个 goroutine 的栈
+
+	// 直接进行内存"搬迁"
+	// 如果目标地址的栈发生了栈收缩，当我们读出了 sg.elem 后
+	// 就不能修改真正的 dst 位置的值了
+	// 因此需要在读和写之前加上一个屏障
+	dst := sg.elem
+	typeBitsBulkBarrier(t, uintptr(dst), uintptr(src), t.size)
+	memmove(dst, src, t.size)
 }
 ```
 
