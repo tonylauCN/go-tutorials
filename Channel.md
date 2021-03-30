@@ -1,12 +1,29 @@
+* [一、前言](#一、前言：并发问题的挑战)
+* [二、Channel介绍](#二、Channel介绍)
+   * [2.1 CSP](#2.1 CSP)
+   * [2.2 Channel](#2.2 Channel)
+   * [2.3 Channel优点](#2.3 Channel优点)
+   * [2.4 Channel声明](#2.4 Channel声明)
+   * [2.5 Channel使用](#2.5 Channel使用)
+   * [2.6 Channel本质](#2.6 Channel本质)
+* [Goroutine调度算法](#goroutine调度算法)
+   * [work-stealing](#work-stealing)
+   * [syscall](#syscall)
+   * [spining](#spining)
+   * [network poller](#network-poller)
+   * [sysmon](#sysmon)
+   * [scheduler affinity](#scheduler-affinity)
+
+
 # Channel
 Channel 是 Go 语言中被用来实现并行计算方程之间通信的类型。其功能是允许线程内/间通过发送和接收来传输指定类型的数据。
 
 > 线程内：runtime.GOMAXPROCS(1) 
 > 线程间：runtime.GOMAXPROCS(2+) 发送/接收端在同一个M，其他M任务偷取
 
-### 前言：并发问题的挑战
+### 一、前言：并发问题的挑战
 
-***并发问题一般有下面这几种： ***
+<strong>并发问题一般有下面这几种： </strong>
 
 * 数据竞争。简单来说就是两个或多个线程同时读写某个变量，造成了预料之外的结果。
 
@@ -23,9 +40,9 @@ Channel 是 Go 语言中被用来实现并行计算方程之间通信的类型�
 大多数的编程语言的并发编程模型是基于线程和内存同步访问控制，Go 的并发编程的模型则用 goroutine 和 channel 来替代。Goroutine 和线程类似，channel 和 mutex (用于内存同步访问控制)类似。
 Channel解决 数据竞争和内存访问同步。
 
-### Channel介绍
+### 二、Channel介绍
 
-#### CSP
+#### 2.1 CSP
 CSP 全称是 “Communicating Sequential Processes”, 中文可以叫做通信顺序进程，是 Go 在并发编程上成功的关键因素。
 它是一种并发编程模型，由 Tony Hoare 于 1977 年提出。简单来说，CSP 模型由并发执行的实体（线程或者进程）所组成，实体之间通过发送消息进行通信，这里发送消息时使用的就是通道，或者叫 channel。CSP 模型的关键是关注 channel，而不关注发送消息的实体。
 Go 语言实现了 CSP 部分理论，goroutine 对应 CSP 中并发执行的实体，channel 也就对应着 CSP 中的 channel。
@@ -33,18 +50,18 @@ Go 语言实现了 CSP 部分理论，goroutine 对应 CSP 中并发执行的实
 > Do not communicate by sharing memory; instead, share memory by communicating.<br>
 > 不要通过共享内存来通信，而要通过通信来实现内存共享。
 
-#### Channel
+#### 2.2 Channel
 Goroutine 和 channel 是 Go 语言并发编程的两大基石。Goroutine用于执行并发任务，channel用于goroutine 之间的同步、通信。
 Channel 在gouroutine间架起了一条管道，在管道里传输数据，实现 gouroutine 间的通信；由于它是线程安全的，所以用起来非常方便；channel还提供FIFO“先进先出”的特性；它还能影响 goroutine 的阻塞和唤醒。
 
 
-#### Channel优点
+#### 2.3 Channel优点
 Go 通过 channel 实现 CSP 通信模型，主要用于 goroutine 之间的消息传递和事件通知。
 
 有了 channel 和 goroutine 之后，Go 的并发编程变得异常容易和安全，得以让程序员把注意力留到业务上去，实现开发效率的提升。
 (用同步代码解决异步问题)
 
-#### Channel声明
+#### 2.4 Channel声明
 Channel 分为两种：带缓冲、不带缓冲。
 
 对不带缓冲的 channel 进行的操作实际上可以看作“同步模式”，带缓冲的则称为“异步模式”。
@@ -80,7 +97,7 @@ Channel 分为两种：带缓冲、不带缓冲。对不带缓冲的 channel 进
 异步模式下，在缓冲槽可用的情况下（有剩余容量），发送和接收操作都可以顺利进行。否则，操作的一方（如写入）同样会被挂起，直到出现相反操作（如接收）才会被唤醒。
 (中断问题,sysmon)
 
-#### Channel使用
+#### 2.5 Channel使用
 ```golang
 package main
 
@@ -116,16 +133,16 @@ func goroutineB(b <-chan int, wg *sync.WaitGroup) {
 }
 ```
 
-#### Channel本质
+#### 2.6 Channel本质
 channel 的发送和接收操作本质上都是 “值的拷贝”，无论是从 sender goroutine 的栈到 chan buf，还是从 chan buf 到 receiver goroutine，或者是直接从 sender goroutine 到 receiver goroutine。
 
 
 lock or channel？
 <img src="https://user-images.githubusercontent.com/10111580/112921524-824c4080-913d-11eb-87a0-6e9ce730417e.png" width="480">
 
-### Channel原理
+### 三、Channel原理
 
-##### hchan数据结构说明
+#### 3.1 hchan数据结构说明
 ```golang
 type hchan struct {
 	// chan 里元素数量
@@ -163,7 +180,7 @@ type waitq struct {
 
 <img src="https://user-images.githubusercontent.com/10111580/112922412-09e67f00-913f-11eb-9693-d678afea7c19.png" width="580">
 
-##### 带缓冲Channel的缓冲区处理
+#### 3.2 带缓冲Channel的缓冲区处理
 
 | make(chan Task, 3)| ch <- Task | ch <- Task *2 | <- ch |
 | --- | --- | --- | --- |
@@ -171,18 +188,18 @@ type waitq struct {
 
 > 补充chan的heap地址
 
-##### 带缓冲Channel步骤说明
+#### 3.2 带缓冲Channel步骤说明
 
 | G1 | G2 |
 | --- | --- |
 | ![image](https://user-images.githubusercontent.com/10111580/112950069-77f56b00-916c-11eb-8817-634afc047985.png)| ![image](https://user-images.githubusercontent.com/10111580/112950094-7d52b580-916c-11eb-8179-33862cfb8ddb.png) |
 
-##### Sender ： G1
+##### 3.2.1 Sender ： G1
 | tashCH <- task0 | 1. acquire | 2. enqueue task0(copy) | 3. release |
 | --- | --- | --- | --- |
 | ![image](https://user-images.githubusercontent.com/10111580/112950391-d15d9a00-916c-11eb-8a4e-f7c459664bb9.png) | ![image](https://user-images.githubusercontent.com/10111580/112950435-dae70200-916c-11eb-89a4-326f1744eb4c.png) | ![image](https://user-images.githubusercontent.com/10111580/112950466-e6d2c400-916c-11eb-8517-1200da4f25fc.png) | ![image](https://user-images.githubusercontent.com/10111580/112950514-f520e000-916c-11eb-9afe-71260dd23ce0.png)|
 
-##### Recevier ： G2
+##### 3.2.2 Recevier ： G2
 | t := <-ch task0（copy) | 1. acquire | 2. dequeue | 3. release  |
 | --- | --- | --- | --- |
 | ![image](https://user-images.githubusercontent.com/10111580/112950931-69f41a00-916d-11eb-88a2-6e0ea87c5ea9.png) | ![image](https://user-images.githubusercontent.com/10111580/112950961-711b2800-916d-11eb-8a69-176527d49fc9.png) | ![image](https://user-images.githubusercontent.com/10111580/112951092-9445d780-916d-11eb-9726-17380283c977.png) | ![image](https://user-images.githubusercontent.com/10111580/112951140-9f990300-916d-11eb-9a90-1f5cb0e31e54.png) |
@@ -196,12 +213,12 @@ task将放入sendq队列中
 `	c.sendq.enqueue(mysg)`
 
 
-##### 不带缓冲Channel步骤说明
+#### 3.3 不带缓冲Channel步骤说明
 
 待补充
 
 
-##### chan.go源码说明 - send部分
+#### 3.4 chan.go源码说明 - send部分
 
 ```golang
 // 位于 src/runtime/chan.go
@@ -363,7 +380,7 @@ func sendDirect(t *_type, sg *sudog, src unsafe.Pointer) {
 ```
 
 
-##### chan.go源码说明 - receive部分
+#### 3.5 chan.go源码说明 - receive部分
 
 ```golang
 // 位于 src/runtime/chan.go
@@ -576,24 +593,24 @@ func chanbuf(c *hchan, i uint) unsafe.Pointer {
 }
 ```
 
-##### 补充G的切换和唤醒：goPark & goReady
+#### 3.6 补充G的切换和唤醒：goPark & goReady
 goPart -> mcall(pc/sp->m.sched) -> parm_m (schedule -> execute -> gogo(m.sched -> pc/sp))
 goReady -> 
 
 
-##### 资源泄漏
+#### 3.7 资源泄漏
 
 Channel 可能会引发 goroutine 泄漏。
 
 泄漏的原因是 goroutine 操作 channel 后，处于发送或接收阻塞状态，而 channel 处于满或空的状态，一直得不到改变。同时，垃圾回收器也不会回收此类资源，进而导致 gouroutine 会一直处于等待队列中，不见天日。
 
-##### 问题
+###四、Channel使用问题
 关于 channel 的使用，有几点不方便的地方：
 * 在不改变 channel 自身状态的情况下，无法获知一个 channel 是否关闭。
 * 关闭一个 closed channel 会导致 panic。所以，如果关闭 channel 的一方在不知道 channel 是否处于关闭状态时就去贸然关闭 channel 是很危险的事情。
 * 向一个 closed channel 发送数据会导致 panic。所以，如果向 channel 发送数据的一方不知道 channel 是否处于关闭状态时就去贸然向 channel 发送数据是很危险的事情。
 
-原则
+#### 4.1 原则
 
 * don’t close a channel from the receiver side and don’t close a channel if the channel has multiple concurrent senders.
 * don’t close (or send values to) closed channels.
