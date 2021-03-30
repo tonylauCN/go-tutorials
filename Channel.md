@@ -1,7 +1,6 @@
 Table of Contents
 =================
 
-* [Channel](#channel)
  * [一、前言：并发问题的挑战](#一前言并发问题的挑战)
  * [二、Channel介绍](#二channel介绍)
     * [2.1 CSP](#21-csp)
