@@ -61,7 +61,7 @@ chan<- T 	// 声明一个只能用于发送的通道
 带缓冲区与不带缓冲区channl创建
 ```golang
 # 带缓冲channel创建
-make(chan T, 5)
+make(chan T, 6)
 
 # 不带缓冲channel创建
 make(chan T)
@@ -150,13 +150,12 @@ type waitq struct {
 	last  *sudog
 }
 ```
-带缓冲
+
 <img src="https://user-images.githubusercontent.com/10111580/112921593-9f810f00-913d-11eb-83c4-239e1e2f3bdb.png" width="480">
 
-
-***LV2***
 <img src="https://user-images.githubusercontent.com/10111580/112922412-09e67f00-913f-11eb-9693-d678afea7c19.png" width="480">
 
+***LV2***
 
 ***LV3***
 ```golang
