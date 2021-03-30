@@ -195,6 +195,12 @@ type waitq struct {
 task将放入sendq队列中
 `	c.sendq.enqueue(mysg)`
 
+
+##### 不带缓冲Channel步骤说明
+
+待补充
+
+
 ##### chan.go源码说明 - send部分
 
 ```golang
