@@ -244,7 +244,7 @@ task将放入sendq队列中
 
 | G1 sender | G2 receiver | Heap|
 | --- | --- | --- |
-| | ![image](https://user-images.githubusercontent.com/10111580/112992186-89ee0280-919a-11eb-9b89-c2999c9e166a.png)|![image](https://user-images.githubusercontent.com/10111580/112992464-c588cc80-919a-11eb-9034-eb79577cac44.png)|
+| ![image](https://user-images.githubusercontent.com/10111580/113074619-00701c00-91fe-11eb-99e2-2f61c4a98c60.png)| ![image](https://user-images.githubusercontent.com/10111580/112992186-89ee0280-919a-11eb-9b89-c2999c9e166a.png)|![image](https://user-images.githubusercontent.com/10111580/112992464-c588cc80-919a-11eb-9034-eb79577cac44.png)|
 
 
 
